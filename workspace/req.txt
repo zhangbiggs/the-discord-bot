@@ -1,0 +1,11 @@
+我们要做一个 Discord 机器人 /opus <youtube-url>，用户在频道里丢一个 YouTube 链接，机器人调用内部视频 pipeline 生成一个 30–60 秒的精彩片段并回帖。
+整个 mock 环境（Discord / 视频 pipeline / LLM 三个服务）已经用 Docker 搭好了，你只需要在 workspace/ 目录里写代码，任何语言、任何框架、任何依赖都可以。请先从头到尾读一遍根目录的 README.md（业务背景）和 docs/PROTOCOL.md（三个 mock 服务的接口契约），然后 make dev 起服务、make send url=... 触发命令、make logs 看频道效果。mock/ 是"生产环境"，请当成外部系统对待，不要改。
+你要做的事，分三个阶段（做到哪算哪，但请按顺序）：
+Phase 1（核心，必须完成）：机器人在 http://localhost:8080/interactions 接收 Discord 的交互请求，调用视频 pipeline 生成片段，最后把结果贴回频道。
+Phase 2：不再直接把 MP4 丢进频道，而是返回一个一次性的领取链接。你需要实现领取页会调用的后端 API：为完成的片段登记一个一次性 token、一个校验 token 并返回视频地址的接口、token 24 小时过期。存储方式随意（领取页本身已经存在，不用做前端）。
+Phase 3：在启动生成任务前，先用 LLM 读 YouTube 字幕、挑一个更有意思的 30 秒窗口，再把 start_seconds / end_seconds 传给 pipeline。
+需要特别注意的几个点（这是考察重点）：
+Discord 有 3 秒硬超时——你的接口必须在 3 秒内返回 HTTP 200，否则交互直接失效（make logs 里会看到 ❌ Interaction failed），之后的 follow-up 全部 404。但视频生成要 30 秒到 5 分钟。所以不能同步等结果，必须先返回"deferred"占位（type 5），等 pipeline 完成后再通过 follow-up webhook 把真正的内容补上。如何处理这个异步、以及怎么保证用户体验不卡在转圈，是这题的核心。
+视频 pipeline 是异步的，支持轮询和 webhook 回调两种方式，自己选一种。
+LLM 默认是"对抗性"的——如果你的 prompt 没有明确要求结构化输出，它会返回自然语言散文而不是 JSON。这块是故意的，考察你的 prompt 怎么写、以及解析/容错怎么做（调不通可以临时设 LLM_ADVERSARIAL=0 调试其余管线，但最终别依赖它）。
+卡住的时候看 docs/HINTS.md，里面有常见问题的排查。语言和实现方式不限，我们更关注你对这个异步接入问题的思路、代码组织和边界处理。
