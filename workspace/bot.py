@@ -27,6 +27,8 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
+import re
+import uvicorn
 
 # ── Logging ──────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -465,7 +467,6 @@ async def _pick_window_with_llm(
         except json.JSONDecodeError:
             # Try to extract JSON from prose (fallback)
             logger.warning("LLM response not valid JSON, attempting extraction")
-            import re
             match = re.search(r'\{.*\}', content, re.DOTALL)
             if match:
                 result = json.loads(match.group())
@@ -528,6 +529,5 @@ async def healthz() -> dict[str, Any]:
 # ══════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    import uvicorn
     logger.info("Starting opus bot on 0.0.0.0:%d", BOT_PORT)
     uvicorn.run(app, host="0.0.0.0", port=BOT_PORT)
